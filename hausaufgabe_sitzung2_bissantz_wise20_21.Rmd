@@ -1,0 +1,96 @@
+---
+title: "Sitzung2_bissantz_wise20_21"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+
+```
+
+
+# Aufgabe: Gibt es eine lineare Beziehung zwischen Anzahl Bücher pro Publisher und Anzahl Ratings, die die Bücher eines Publishers erhalten?
+
+## Die elementaren Spalten werden den Dataframes BX-Books und BX_Book_Ratings entnommen und zu den neune Dataframes books und ratings überführt.
+
+```{r}
+books <- BX_Books %>%
+  select (ISBN, `Book-Title`, `Book-Author`, Publisher)
+
+ratings <- BX_Book_Ratings %>%
+  select(ISBN, `Book-Rating`)
+```
+
+## Die beiden Dataframes books und ratings werden über die ISBN durch einen Left Join in ein neues Dataframe books_ratings_joined gefasst
+
+```{r}
+books_ratings_joined <- books %>%
+  left_join(ratings)
+```
+
+
+## Ich baue neue Dataframes. Aus den Dataframes books_ratings_joined entnehme ich die Anzahl an Ratings für Bücher von den jeweiligen Verlagen (abhängige Variable). Aus dem Dataframe books entnehme ich die Anzahl der veröffentlichten Büchern bei den jeweiligen Verlagen (unabhängige Varibale)
+
+```{r}
+number_ratings <- books_ratings_joined %>%
+  group_by(Publisher) %>%
+  summarise(variable_number_ratings = n()) %>%
+  arrange(desc(variable_number_ratings))
+
+number_books <- books %>%
+  group_by(Publisher) %>%
+  summarise(variable_number_books = n()) %>%
+  arrange(desc(variable_number_books))
+```
+
+## Diese beiden Dataframes setzte ich zu einem neuen Dataframe zusammen: number_joined
+
+```{r}
+number_joined <- number_ratings %>%
+  left_join(number_books)
+```
+
+## Mit lm() findet die Berechenung wird die Regressions Analyse durchgeführt.
+
+```{r}
+fit <- lm(number_joined$variable_number_ratings ~ number_joined$variable_number_books)
+```
+
+## Mit plot() werden in einem Streudiagramm die Werte verteilt. Durch abline () wird eine gerade Linie durch die Punkte gezogen. Mit summary () werden die Punkte ausgewertet und Ergebnisse ermittelt.
+
+```{r}
+plot(number_joined$variable_number_ratings~number_joined$variable_number_books)
+abline(fit)
+summary(fit)
+```
+
+# Interpretation: Der Korrelationskoeffizient liegt bei 0,76. Folglich ist es wahrscheinlich, dass eine lineare Beziehung zwischen Anzahl Bücher pro Publisher und Anzahl Ratings, die die Bücher eines Publishers erhalten, besteht. 
+
+# Aufgabe: Haben ältere Bücher mehr Ratings, weil sie mehr Zeit haben, um Ratings zu sammeln?
+
+## Die elementaren Spalten werden den Dataframes BX-Books und BX_Book_Ratings entnommen und zu den neunen Dataframes books2 und ratings2 überführt. 
+
+```{r}
+books2 <- BX_Books %>%
+  select (ISBN, `Year-Of-Publication` ,`Book-Title`, `Book-Author`)
+
+ratings2 <- BX_Book_Ratings %>%
+  select(ISBN, `Book-Rating`)
+```
+
+## Die beiden Dataframes books2 und ratings2 werden über die ISBN durch einen Left-Join in ein neues Dataframe books_ratings_joined2 gefasst
+
+```{r}
+books_ratings_joined2 <- books2 %>%
+  left_join(ratings2)
+```
+# In dem Dataframe werden Publikationen nach ihrem Veröffentlichungsdatum gruppiert und absteigend nach der Anzahl ihrer Ratings sortiert. 
+
+```{r}
+books_ratings_joined2 %>%
+  group_by(`Year-Of-Publication`) %>%
+  summarise(number_ratings2 = n()) %>%
+  arrange(desc(number_ratings2))
+```
+
+# Interpretation: Anhand der entstandenen Tabelle lässt, sich absehen, dass verhältnismäßig neuere Titel (Énde der 90er und Anfang des Jahrtausends) tendenziell mehr Ratings erhalten als wesentlich ältere Bücher. In dem Bereich 1999 bis 2003 bewegen wir uns zwischen 72000 und 92000 Ratings, von 1990 bis 1998 zwischen 31000 und 64000 Ratings. Dieser Trend setzt sich nach unten hin vort.

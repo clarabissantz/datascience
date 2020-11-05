@@ -11,6 +11,15 @@ library(tidyverse)
 
 # Aufgabe: Gibt es eine lineare Beziehung zwischen Anzahl Bücher pro Publisher und Anzahl Ratings, die die Bücher eines Publishers erhalten?
 
+```{r}
+BX_Book_Ratings <- read_delim("BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+
+BX_Books <- read_delim("BX-Books.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+```
+
+
 ## Die elementaren Spalten werden den Dataframes BX-Books und BX_Book_Ratings entnommen und zu den neune Dataframes books und ratings überführt.
 
 ```{r}

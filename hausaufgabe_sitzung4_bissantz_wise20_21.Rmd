@@ -1,0 +1,189 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Einfügen der Libraries
+
+```{r}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(pROC)
+library(rpart)
+library(rpart.plot)
+```
+
+# Aufgabe: Bitte erstellen Sie ein Notebook mit weiteren Features
+
+# Einfügen des Datensatzes
+
+```{r}
+titanic <- read_delim("titanic.csv", ";", 
+    escape_double = FALSE, trim_ws = TRUE)
+```
+
+# Ausgabe der Werte von survived, die wir prognostizieren wollen.
+
+```{r}
+titanic %>%
+  group_by(survived) %>%
+  summarize(n = n())
+```
+
+# Wir erstellen einen Dataframe mit den drei Variablen, die wir im Modell darstellen wollen.
+
+
+```{r}
+auswahl <- titanic %>%
+  select(survived,age,sex,fare)
+```
+
+# Wir ersetzen die Kommata mit Punkten (R versteht nur Englisch).
+
+```{r}
+auswahl <- auswahl %>%
+  mutate(age = as.numeric(str_replace(age,",",".")))
+```
+```{r}
+auswahl <- auswahl %>%
+  mutate(fare = as.numeric(str_replace(fare,",",".")))
+```
+
+# Wir legen fest, dass alle Menschen unter 10 Kinder sind, alle darüber sind erwachsen.
+
+```{r}
+auswahl <- auswahl %>%
+  mutate(as.factor(ifelse(age < 10, "child", "adult")))
+```
+
+# Mit na.omit entfernen wir die Daten, die nicht angegeben wurden.
+
+```{r}
+auswahl <- na.omit(auswahl)
+```
+
+# Hier wird Geschlecht zu numerischen Werten umfunktioniert, um damit die Prognose erstellen zu können.
+
+```{r}
+auswahl <- auswahl %>%
+  mutate(sex = ifelse(sex == "female", 1, 0))
+```
+
+
+# Hier unterteilen wir den Datensatz in einen Training- und einen Testingsatz. Das passiert randomisiert. 
+
+```{r}
+set.seed(180)
+inTrain <- createDataPartition(
+  y = auswahl$survived,
+  p = .8,
+  list = FALSE)
+trainingsatz <- auswahl[ inTrain,]
+testsatz  <- auswahl[-inTrain,]
+```
+
+# Im Folgenden Teil werden die Berechnungen zur Prognosefähigkeit angestellt.
+
+```{r}
+model <- svm(survived ~ ., data = trainingsatz)
+summary(model)
+pred <- predict(model, testsatz[,-1], probability = FALSE)
+```
+
+```{r}
+(ergebnisse <- cbind(pred, testsatz))
+```
+
+# Nun wird die Konfusionsmatrix ausgegeben, wofür die Predictionwerte auf 1 oder 0 gerundet werden, je nachdem wie hoch sie sind.
+
+```{r}
+ergebnisse.gerundet <- ergebnisse %>%
+  mutate(pred = ifelse(pred >=0.5,1,0))
+table(ergebnisse.gerundet$pred, testsatz$survived)
+```
+
+# Hier wird die ROC AUC Kurve geplottet und der AUC-Wert mit der Standardabweichung abgerufen.
+
+```{r}
+pROC_obj <- roc(ergebnisse$survived, ergebnisse$pred, smoothed=TRUE,
+                ci = TRUE, ci.alpha=0.9, stratified=FALSE, plot=TRUE, auc.polygon=TRUE, 
+                max.auc.polygon=TRUE, grid=TRUE, print.auc=TRUE, show.thres=TRUE) 
+```
+
+# Als zweites Modell wird die Bayessche Statistik verwendet, dafür werden die Variablen zu Vektoren umfunktioniert.
+
+```{r}
+bayes_training <- trainingsatz %>%
+  mutate(survived = as.factor(survived)) %>%
+  mutate(sex = as.factor(sex)) %>%
+  mutate(fare = as.factor(fare)) %>%
+  mutate(age = as.factor(age))
+modell <- naiveBayes(survived ~ ., data = bayes_training)
+modell
+```
+
+# Hier wird die Berechnung des Predictionwertes durchgeführt und die Konfusionstabelle abgerufen.
+
+```{r}
+bayes_testing <- testsatz %>%
+  mutate(fare = as.factor(fare)) %>%
+  mutate(sex = as.factor(sex)) %>%
+  mutate(age = as.factor(age))
+bayes_pred <- predict(modell, bayes_testing)
+table(bayes_pred, bayes_testing$survived)
+```
+```{r}
+(bayes_ergebnisse <- cbind(bayes_pred, bayes_testing))
+```
+
+# Nun wird die ROC AUC Kurve anhand des Naive Bayes berechnet und ausgegeben.
+
+```{r}
+bayes_ergebnisse <- bayes_ergebnisse %>%
+  mutate(bayes_pred = as.numeric(bayes_pred))
+pROC_obj <- roc(as.numeric(as.character(bayes_ergebnisse$survived)), bayes_ergebnisse$bayes_pred,
+                 smoothed=TRUE, ci=TRUE, ci.alpha=0.9, stratified=FALSE, plot=TRUE,
+                 auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE, print.auc=TRUE,
+                 show.thres=TRUE)
+```
+
+# Dritte Methode der AUC Erfassung: Entscheidungsbaum.
+
+```{r}
+baum <- rpart(survived~., data = trainingsatz, method = 'class')
+rpart.plot(baum)
+```
+
+# Als dritte Option wurde die Prognose anhand des Entscheidungsbaumes berechnet.
+
+```{r}
+baum_ergebnisse <- predict(baum, testsatz[,-1], type = 'prob')
+head(model.baum_ergebnisse <- cbind(testsatz, baum_ergebnisse),500)
+```
+
+# Auch hier wird die Konfusionstabelle gebildet.
+
+```{r}
+baum_ergebnisse2 <- bayes_ergebnisse %>%
+  mutate(pred = ifelse(bayes_pred>=0.5,1,0))
+table(baum_ergebnisse2$pred, testsatz$survived)
+```
+
+# Wir berechnen und plotten hier die ROC AUC Kurve anhand des Entscheidungsbaumes.
+
+```{r}
+pROC_obj <- roc(model.baum_ergebnisse$survived,model.baum_ergebnisse$`1`,
+                smoothed=TRUE, ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+                plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+                print.auc=TRUE, show.thres=TRUE)
+```
+
+# Aufgabe: Was sind die Unterschiede in der Performance der Algorithmen?
+
+## Lösung: Die Bayessche Statistik sieht die Prognosefähigkeit mit 0,72 am geringsten, gefolgt von dem Entscheidungsbaum mit 0,75 und die konventionelle Statistik liegt mit 0,79 am höchsten.   
+
+
+# Aufgabe: Finden Sie Erklärungen dafür.
+
+## Lösung: Die konventionelle Statistik benötigt eine verhältnismäßig große Datenmenge um aussagekräftig zu sein. Das  sollte allerdings bei deim vorliegenden Datensatz titanic kein Problem darstellen. Die Bayessche Statistik beruht nicht auf Distanzen. Wir haben hier mit drei Variablen zu tun (Alter, Geschlecht und Ticketpreise), davon sind 2 distanzlos (Alter (Kind/Erwachsener) und Geschlecht. Ticketpreise sollten Distanzen haben, daher kann ich nicht einschätzen, wie meine gewählte Variable dieses Modell beeinflusst.  

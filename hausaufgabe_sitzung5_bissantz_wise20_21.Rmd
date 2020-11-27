@@ -1,0 +1,126 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(tidyverse)
+library(cluster)
+library(caret)
+```
+
+# Aufgabe: Versuchen Sie die Leser*innen aus dem Buch-Datenset zu clustern.
+
+## Einfügen des Datensatzes
+
+```{r}
+all <- read_csv("all.csv")
+```
+
+## Bereinigen des Datensatzes
+
+```{r}
+users_books <- all %>%
+  group_by(`Book-Title`) %>%
+  mutate(no_of_books = n()) %>%
+  filter(no_of_books > 49) %>%
+  filter(`Book-Rating` > 9) %>%
+  select(`User-ID`, `Book-Title`)
+```
+
+## Die Buch-Titeln werden in einem neuen Dataframe Spalten zugeordnet.
+
+```{r}
+users_books <- users_books %>%
+  unique()
+books_wide <- users_books %>%
+  mutate(i = 1) %>%
+  spread(`Book-Title`,i,fill=0)
+```
+
+## Durch einen ScreeTest wird die optimale Anzahl der Cluster abgelesen: 3.
+
+```{r}
+wss <- (nrow(books_wide)-1)*sum(apply(books_wide,2,var))
+  for (i in 2:10) wss[i] <- sum(kmeans(books_wide,
+                                       centers=i)$withinss)
+plot(1:10, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+```
+
+## Es wird euklidisch geclustert und auf dieser Basis eine Dendromgram erstellt.
+
+```{r}
+books_wide.dist <- dist(books_wide, method="euclidean")
+books_wide.hc <- hclust(books_wide.dist, method = "complete")
+plot(books_wide.hc)
+groups <- cutree(books_wide.hc, k=3) 
+rect.hclust(books_wide.hc, k=3, border="red")
+```
+
+## k means Clustering
+
+```{r}
+k.means.fit <- kmeans(books_wide, 3) 
+```
+
+## Die Werte innerhalb der Cluster sind gleichmäßig verteilt.
+
+```{r}
+k.means.fit$size
+```
+## User-Id und Cluster werden in einem Dataframe zusammengesetzt.
+
+```{r}
+ergebnisse <- as.data.frame(cbind(books_wide$`User-ID`, k.means.fit$cluster))
+```
+
+## Die Variable V1 wird umbenannt zu User- ID.
+
+```{r}
+ergebnisse <- ergebnisse %>%
+rename (`User-ID` = `V1`)
+```
+
+## Ergebnisse und users_books werden über einen left_join verbunden.
+
+```{r}
+ergebnisse_joined <- ergebnisse %>%
+  left_join(users_books)
+```
+
+# Aufgabe: Welche Bücher gehören in welches Cluster?
+
+## Aus dem Dataframe werden User-ID, die Cluserzuordnung (V2) und Book-Title entnommen. Es werden die Buch-Titel gefiltert, die sich Cluster 1 zuordnen lassen. Es wird nach Buch-Titel sortiert und die Anzahl rausgegeben. So minimiert sich der Dataframe erheblich und es lässt sich an Kennzahlen ablesen, inwieweit der Buch-Titel in einem Cluster vertreten ist. 
+
+## Cluster 1
+
+```{r}
+cluster1 <- ergebnisse_joined %>%
+  select(`User-ID`, `V2`, `Book-Title`) %>%
+  filter(`V2` == 1) %>%
+  group_by(`Book-Title`)%>%
+  summarize(n = n())
+```
+
+## Cluster 2
+
+```{r}
+cluster2 <- ergebnisse_joined %>%
+  select(`User-ID`, `V2`, `Book-Title`) %>%
+  filter(`V2` == 2) %>%
+  group_by(`Book-Title`)%>%
+  summarize(n = n())
+```
+
+## Cluster 3
+
+```{r}
+cluster3 <- ergebnisse_joined %>%
+  select(`User-ID`, `V2`, `Book-Title`) %>%
+  filter(`V2` == 3) %>%
+  group_by(`Book-Title`)%>%
+  summarize(n = n())
+```
+
+
+
